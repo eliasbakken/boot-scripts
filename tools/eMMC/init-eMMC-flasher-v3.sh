@@ -108,32 +108,6 @@ check_eeprom () {
 	eeprom="/sys/bus/i2c/devices/0-0050/eeprom"
 	message="Checking for Valid BBB EEPROM header" ; broadcast
 
-	#Flash BeagleBone Black's eeprom:
-	eeprom_location=$(ls /sys/devices/ocp*/44e0b000.i2c/i2c-0/0-0050/eeprom 2> /dev/null)
-	eeprom_header=$(hexdump -e '8/1 "%c"' ${eeprom} -s 5 -n 3)
-	if [ "x${eeprom_header}" = "x335" ] ; then
-		message="Valid BBB EEPROM header found" ; broadcast
-		message="-----------------------------" ; broadcast
-	else
-		message="Invalid EEPROM header detected" ; broadcast
-		if [ -f /opt/scripts/device/bone/bbb-eeprom.dump ] ; then
-			if [ ! "x${eeprom_location}" = "x" ] ; then
-				message="Writing header to EEPROM" ; broadcast
-				dd if=/opt/scripts/device/bone/bbb-eeprom.dump of=${eeprom_location}
-				sync
-				sync
-				eeprom_check=$(hexdump -e '8/1 "%c"' ${eeprom} -s 4 -n 8)
-				echo "eeprom check: [${eeprom_check}]"
-
-				#We have to reboot, as the kernel only loads the eMMC cape
-				# with a valid header
-				reboot -f
-
-				#We shouldnt hit this...
-				exit
-			fi
-		fi
-	fi
 }
 
 check_running_system () {
