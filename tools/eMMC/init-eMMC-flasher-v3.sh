@@ -179,6 +179,7 @@ cylon_leds () {
 }
 
 display_loader () {
+	echo 0 > /sys/class/graphics/fbcon/cursor_blink
 	/usr/bin/fbi -T 2 /opt/scripts/replicape/Kamikaze_image_loader_rotate.png
 }
 
