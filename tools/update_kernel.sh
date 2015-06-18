@@ -117,52 +117,90 @@ latest_version_repo () {
 	fi
 }
 
+#Only for the original May 2014 image, everything should use the repo's now..
 latest_version () {
-	mirror="https://rcn-ee.com/deb"
 	if [ ! "x${SOC}" = "x" ] ; then
 		cd /tmp/
 		if [ -f /tmp/LATEST-${SOC} ] ; then
 			rm -f /tmp/LATEST-${SOC} || true
 		fi
-		if [ -f /tmp/install-me.sh ] ; then
-			rm -f /tmp/install-me.sh || true
-		fi
 
 		echo "info: checking archive"
 		wget ${mirror}/${dist}-${arch}/LATEST-${SOC}
 		if [ -f /tmp/LATEST-${SOC} ] ; then
-			latest_kernel=$(cat /tmp/LATEST-${SOC} | grep ${kernel} | awk '{print $3}' | awk -F'/' '{print $6}')
-			if [ "xv${current_kernel}" = "x${latest_kernel}" ] ; then
-				echo "v${current_kernel} is latest"
-			else
-				wget $(cat /tmp/LATEST-${SOC} | grep ${kernel} | awk '{print $3}')
-				if [ -f /tmp/install-me.sh ] ; then
-					if [ "x${rcn_mirror}" = "xenabled" ] ; then
-						sed -i -e 's:disabled:enabled:g' /tmp/install-me.sh
-					fi
-					/bin/bash /tmp/install-me.sh
+			latest_kernel=$(cat /tmp/LATEST-${SOC} | grep ${kernel} | awk '{print $3}')
+			echo "debug: your are running: [${current_kernel}]"
+			echo "debug: latest is: [${latest_kernel}]"
+
+			if [ ! "x${current_kernel}" = "x${latest_kernel}" ] ; then
+				distro=$(lsb_release -is)
+				if [ "x${distro}" = "xDebian" ] ; then
+					wget -c https://rcn-ee.com/repos/debian/pool/main/l/linux-upstream/linux-image-${latest_kernel}_1${dist}_${arch}.deb
 				else
-					echo "error: kernel: ${kernel} not on mirror"
+					wget -c https://rcn-ee.com/repos/ubuntu/pool/main/l/linux-upstream/linux-image-${latest_kernel}_1${dist}_${arch}.deb
+				fi
+				if [ -f /tmp/linux-image-${latest_kernel}_1${dist}_${arch}.deb ] ; then
+					dpkg -i /tmp/linux-image-${latest_kernel}_1${dist}_${arch}.deb
+					sync
+
+					if [ -f /boot/vmlinuz-${latest_kernel} ] ; then
+						bootdir="/boot/uboot"
+
+						if [ -f ${bootdir}/zImage_bak ] ; then
+							rm ${bootdir}/zImage_bak
+							sync
+						fi
+
+						if [ -f ${bootdir}/zImage ] ; then
+							echo "Backing up ${bootdir}/zImage as ${bootdir}/zImage_bak..."
+							mv -v ${bootdir}/zImage ${bootdir}/zImage_bak
+							sync
+						fi
+
+						if [ -f ${bootdir}/initrd.bak ] ; then
+							rm ${bootdir}/initrd.bak
+							sync
+						fi
+
+						if [ -f ${bootdir}/initrd.img ] ; then
+							echo "Backing up ${bootdir}/initrd.img as ${bootdir}/initrd.bak..."
+							mv -v ${bootdir}/initrd.img ${bootdir}/initrd.bak
+							sync
+						fi
+
+						if [ -d ${bootdir}/dtbs_bak/ ] ; then
+							rm -rf ${bootdir}/dtbs_bak/ || true
+							sync
+						fi
+
+						if [ -d ${bootdir}/dtbs/ ] ; then
+							echo "Backing up ${bootdir}/dtbs/ as ${bootdir}/dtbs_bak/..."
+							mv ${bootdir}/dtbs/ ${bootdir}/dtbs_bak/ || true
+							sync
+						fi
+
+						if [ -d /boot/dtbs/${latest_kernel}/ ] ; then
+							mkdir -p ${bootdir}/dtbs/
+							cp /boot/dtbs/${latest_kernel}/*.dtb ${bootdir}/dtbs/ 2>/dev/null || true
+							sync
+						fi
+
+						if [ ! -f /boot/initrd.img-${latest_kernel} ] ; then
+							echo "Creating /boot/initrd.img-${latest_kernel}"
+							update-initramfs -c -k ${latest_kernel}
+							sync
+						else
+							echo "Updating /boot/initrd.img-${latest_kernel}"
+							update-initramfs -u -k ${latest_kernel}
+							sync
+						fi
+
+						cp -v /boot/vmlinuz-${latest_kernel} ${bootdir}/zImage
+						cp -v /boot/initrd.img-${latest_kernel} ${bootdir}/initrd.img
+					fi
 				fi
 			fi
 		fi
-	fi
-}
-
-specific_version () {
-	mirror="https://rcn-ee.com/deb"
-	cd /tmp/
-	if [ -f /tmp/install-me.sh ] ; then
-		rm -f /tmp/install-me.sh || true
-	fi
-	wget ${mirror}/${dist}-${arch}/${kernel_version}/install-me.sh
-	if [ -f /tmp/install-me.sh ] ; then
-		if [ "x${rcn_mirror}" = "xenabled" ] ; then
-			sed -i -e 's:disabled:enabled:g' /tmp/install-me.sh
-		fi
-		/bin/bash /tmp/install-me.sh
-	else
-		echo "error: kernel: ${kernel_version} doesnt exist"
 	fi
 }
 
@@ -263,6 +301,10 @@ fi
 
 test_rcnee=$(cat /etc/apt/sources.list | grep rcn-ee || true)
 if [ ! "x${test_rcnee}" = "x" ] ; then
+	net_rcnee=$(cat /etc/apt/sources.list | grep repos.rcn-ee.net || true)
+	if [ ! "x${net_rcnee}" = "x" ] ; then
+		sed -i -e 's:repos.rcn-ee.net:repos.rcn-ee.com:g' /etc/apt/sources.list
+	fi
 	apt-get update
 	get_device
 
@@ -275,11 +317,7 @@ if [ ! "x${test_rcnee}" = "x" ] ; then
 	apt-get clean
 else
 	get_device
-	if [ "x${kernel_version}" = "x" ] ; then
-		latest_version
-	else
-		specific_version
-	fi
+	latest_version
 fi
 #third_party
 #
