@@ -1,0 +1,17 @@
+appearance: {}
+feature: {}
+folder:
+  uploads: /usr/share/models
+gcodeViewer: {}
+plugins:
+  cura:
+    cura_engine: /usr/bin/CuraEngine
+    debug_logging: false
+    default_profile: null
+serial:
+  additionalPorts:
+    - /dev/octoprint_1
+  baudrate: 115200
+  port: /dev/octoprint_1
+
+
