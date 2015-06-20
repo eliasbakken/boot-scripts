@@ -194,4 +194,8 @@ if [ "x${abi}" = "x" ] ; then
 	fi
 fi
 
+
+# Call the replicape specific start-up script
+$(dirname $0)/replicape-startup.sh
+
 #
