@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "Replicape first boot script"
+
 # Make folder for octoprint
 mkdir -p /home/octo
 mkdir -p "/home/octo/.octoprint"
