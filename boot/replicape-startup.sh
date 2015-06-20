@@ -13,6 +13,8 @@ chmod 777 /usr/share/models
 cp /opt/scripts/replicape/config.yaml /home/octo/.octoprint/
 chown octo:octo "/home/octo/.octoprint/config.yaml"
 
+chown octo:octo /etc/redeem/
+
 # Run depmod to fix 
 sleep 10
 depmod -a

@@ -224,6 +224,12 @@ cylon_leds () {
 	fi
 }
 
+display_loader () {
+	echo 0 > /sys/class/graphics/fbcon/cursor_blink
+	/usr/bin/fbi -T 2 /opt/scripts/images/Kamikaze_image_loader_rotate.png
+}
+
+
 dd_bootloader () {
 	message="Writing bootloader to [${destination}]" ; broadcast
 
@@ -482,5 +488,6 @@ message="-----------------------------" ; broadcast
 check_eeprom
 check_running_system
 cylon_leds & CYLON_PID=$!
+display_loader &
 partition_drive
 #
