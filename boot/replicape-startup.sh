@@ -15,6 +15,7 @@ chmod 777 /usr/share/models
 cp /opt/scripts/replicape/config.yaml /home/octo/.octoprint/
 chown octo:octo "/home/octo/.octoprint/config.yaml"
 
+# Make profiles uploadable via Octoprint
 chown octo:octo /etc/redeem/
 
 # Run depmod to fix 
@@ -24,4 +25,13 @@ systemctl restart pvrsrv
 systemctl restart toggle
 
 
+update_initramfs () {
+        if [ -f /boot/initrd.img-$(uname -r) ] ; then
+                sudo update-initramfs -u -k $(uname -r)
+        else
+                sudo update-initramfs -c -k $(uname -r)
+        fi
+}
+
+update_initramfs
 
