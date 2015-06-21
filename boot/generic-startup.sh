@@ -56,3 +56,8 @@ if [ -f /proc/device-tree/model ] ; then
 		/bin/sh /opt/scripts/boot/${script}
 	fi
 fi
+
+# Disable the startup script so it does not run again
+if [ -f /lib/systemd/system/generic-board-startup.service ] ; then
+	systemctl disable generic-board-startup.service || true
+fi
