@@ -24,6 +24,8 @@
 #This script assumes, these packages are installed, as network may not be setup
 #dosfstools initramfs-tools rsync u-boot-tools
 
+version_message="1.002: 2015-08-07: use device_eeprom for bbb-eeprom/bbg-eeprom..."
+
 if ! id | grep -q root; then
 	echo "must be run as root"
 	exit
@@ -104,48 +106,55 @@ write_failure () {
 }
 
 check_eeprom () {
-	message="Checking for Valid BBB EEPROM header" ; broadcast
+	device_eeprom="bbb-eeprom"
+	message="Checking for Valid ${device_eeprom} header" ; broadcast
 
-	if [ -f /sys/class/nvmem/at24-0/nvmem ] ; then
-		message="4.1.x+ kernel with nvmem detected..." ; broadcast
-		eeprom="/sys/class/nvmem/at24-0/nvmem"
+	unset got_eeprom
 
-		#with 4.1.x: -s 5 isn't working...
-		#eeprom_header=$(hexdump -e '8/1 "%c"' ${eeprom} -s 5 -n 3) = blank...
-		#hexdump -e '8/1 "%c"' ${eeprom} -n 8 = �U3�A335
-		eeprom_header=$(hexdump -e '8/1 "%c"' ${eeprom} -n 8 | cut -b 6-8)
-
-		eeprom_location="/sys/devices/platform/ocp/44e0b000.i2c/i2c-0/0-0050/nvmem/at24-0/nvmem"
-	else
-		eeprom="/sys/bus/i2c/devices/0-0050/eeprom"
-		eeprom_header=$(hexdump -e '8/1 "%c"' ${eeprom} -s 5 -n 3)
-		eeprom_location=$(ls /sys/devices/ocp*/44e0b000.i2c/i2c-0/0-0050/eeprom 2> /dev/null)
+	#v8 of nvmem...
+	if [ -f /sys/bus/nvmem/devices/at24-0/nvmem ] && [ "x${got_eeprom}" = "x" ] ; then
+		eeprom="/sys/bus/nvmem/devices/at24-0/nvmem"
+		eeprom_location="/sys/devices/platform/ocp/44e0b000.i2c/i2c-0/0-0050/at24-0/nvmem"
+		got_eeprom="true"
 	fi
 
-	if [ "x${eeprom_header}" = "x335" ] ; then
-		message="Valid BBB EEPROM header found [${eeprom_header}]" ; broadcast
-		message="-----------------------------" ; broadcast
-	else
-		message="Invalid EEPROM header detected" ; broadcast
-		if [ -f /opt/scripts/device/bone/bbb-eeprom.dump ] ; then
-			if [ ! "x${eeprom_location}" = "x" ] ; then
-				message="Writing header to EEPROM" ; broadcast
-				dd if=/opt/scripts/device/bone/bbb-eeprom.dump of=${eeprom_location}
-				sync
-				sync
-				if [ -f /sys/class/nvmem/at24-0/nvmem ] ; then
+	#pre-v8 of nvmem...
+	if [ -f /sys/class/nvmem/at24-0/nvmem ] && [ "x${got_eeprom}" = "x" ] ; then
+		eeprom="/sys/class/nvmem/at24-0/nvmem"
+		eeprom_location="/sys/devices/platform/ocp/44e0b000.i2c/i2c-0/0-0050/nvmem/at24-0/nvmem"
+		got_eeprom="true"
+	fi
+
+	#eeprom...
+	if [ -f /sys/bus/i2c/devices/0-0050/eeprom ] && [ "x${got_eeprom}" = "x" ] ; then
+		eeprom="/sys/bus/i2c/devices/0-0050/eeprom"
+		eeprom_location=$(ls /sys/devices/ocp*/44e0b000.i2c/i2c-0/0-0050/eeprom 2> /dev/null)
+		got_eeprom="true"
+	fi
+
+	if [ "x${got_eeprom}" = "xtrue" ] ; then
+		eeprom_header=$(hexdump -e '8/1 "%c"' ${eeprom} -n 8 | cut -b 6-8)
+		if [ "x${eeprom_header}" = "x335" ] ; then
+			message="Valid ${device_eeprom} header found [${eeprom_header}]" ; broadcast
+			message="-----------------------------" ; broadcast
+		else
+			message="Invalid EEPROM header detected" ; broadcast
+			if [ -f /opt/scripts/device/bone/${device_eeprom}.dump ] ; then
+				if [ ! "x${eeprom_location}" = "x" ] ; then
+					message="Writing header to EEPROM" ; broadcast
+					dd if=/opt/scripts/device/bone/${device_eeprom}.dump of=${eeprom_location}
+					sync
+					sync
 					eeprom_check=$(hexdump -e '8/1 "%c"' ${eeprom} -n 8 | cut -b 6-8)
-				else
-					eeprom_check=$(hexdump -e '8/1 "%c"' ${eeprom} -s 4 -n 8)
+					echo "eeprom check: [${eeprom_check}]"
+
+					#We have to reboot, as the kernel only loads the eMMC cape
+					# with a valid header
+					reboot -f
+
+					#We shouldnt hit this...
+					exit
 				fi
-				echo "eeprom check: [${eeprom_check}]"
-
-				#We have to reboot, as the kernel only loads the eMMC cape
-				# with a valid header
-				reboot -f
-
-				#We shouldnt hit this...
-				exit
 			fi
 		fi
 	fi
@@ -303,6 +312,7 @@ format_single_root () {
 copy_boot () {
 	message="Copying: ${source}p1 -> ${destination}p1" ; broadcast
 	mkdir -p /tmp/boot/ || true
+
 	mount ${destination}p1 /tmp/boot/ -o sync
 
 	if [ -f /boot/uboot/MLO ] ; then
@@ -330,6 +340,7 @@ copy_boot () {
 copy_rootfs () {
 	message="Copying: ${source}p${media_rootfs} -> ${destination}p${media_rootfs}" ; broadcast
 	mkdir -p /tmp/rootfs/ || true
+
 	mount ${destination}p${media_rootfs} /tmp/rootfs/ -o async,noatime
 
 	message="rsync: / -> /tmp/rootfs/" ; broadcast
@@ -448,8 +459,25 @@ partition_drive () {
 		rootfs_label=${rootfs_label:-"rootfs"}
 
 		message="Formatting: ${destination}" ; broadcast
-		LC_ALL=C sfdisk --force --in-order --Linux --unit M "${destination}" <<-__EOF__
-			${conf_boot_startmb},${conf_boot_endmb},${sfdisk_fstype},*
+
+		sfdisk_options="--force --Linux --in-order --unit M"
+		sfdisk_boot_startmb="${conf_boot_startmb}"
+		sfdisk_boot_endmb="${conf_boot_endmb}"
+
+		test_sfdisk=$(LC_ALL=C sfdisk --help | grep -m 1 -e "--in-order" || true)
+		if [ "x${test_sfdisk}" = "x" ] ; then
+			message="sfdisk: [2.26.x or greater]" ; broadcast
+			sfdisk_options="--force"
+			sfdisk_boot_startmb="${sfdisk_boot_startmb}M"
+			sfdisk_boot_endmb="${sfdisk_boot_endmb}M"
+		fi
+
+		message="sfdisk: [sfdisk ${sfdisk_options} ${destination}]" ; broadcast
+		message="sfdisk: [${sfdisk_boot_startmb},${sfdisk_boot_endmb},${sfdisk_fstype},*]" ; broadcast
+		message="sfdisk: [,,,-]" ; broadcast
+
+		LC_ALL=C sfdisk ${sfdisk_options} "${destination}" <<-__EOF__
+			${sfdisk_boot_startmb},${sfdisk_boot_endmb},${sfdisk_fstype},*
 			,,,-
 		__EOF__
 
@@ -468,8 +496,22 @@ partition_drive () {
 		boot_label=${boot_label:-"BEAGLEBONE"}
 
 		message="Formatting: ${destination}" ; broadcast
-		LC_ALL=C sfdisk --force --in-order --Linux --unit M "${destination}" <<-__EOF__
-			${conf_boot_startmb},,${sfdisk_fstype},*
+
+		sfdisk_options="--force --Linux --in-order --unit M"
+		sfdisk_boot_startmb="${conf_boot_startmb}"
+
+		test_sfdisk=$(LC_ALL=C sfdisk --help | grep -m 1 -e "--in-order" || true)
+		if [ "x${test_sfdisk}" = "x" ] ; then
+			message="sfdisk: [2.26.x or greater]" ; broadcast
+			sfdisk_options="--force"
+			sfdisk_boot_startmb="${sfdisk_boot_startmb}M"
+		fi
+
+		message="sfdisk: [sfdisk ${sfdisk_options} ${destination}]" ; broadcast
+		message="sfdisk: [${sfdisk_boot_startmb},${sfdisk_boot_endmb},${sfdisk_fstype},*]" ; broadcast
+
+		LC_ALL=C sfdisk ${sfdisk_options} "${destination}" <<-__EOF__
+			${sfdisk_boot_startmb},,${sfdisk_fstype},*
 		__EOF__
 
 		flush_cache
@@ -482,8 +524,13 @@ partition_drive () {
 	fi
 }
 
-message="Starting eMMC Flasher" ; broadcast
+sleep 5
+clear
 message="-----------------------------" ; broadcast
+message="Starting eMMC Flasher from microSD media" ; broadcast
+message="Version: [${version_message}]" ; broadcast
+message="-----------------------------" ; broadcast
+
 check_eeprom
 check_running_system
 cylon_leds & CYLON_PID=$!

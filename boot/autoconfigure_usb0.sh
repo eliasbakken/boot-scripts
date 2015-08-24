@@ -48,9 +48,9 @@ unset deb_etc_dir \
 # Separated /etc variable to ease test on host system (by changing
 # etc_dir during test).
 deb_etc_dir=/etc
-deb_ro_dir=$(mktemp -d)
+#deb_ro_dir=$(mktemp -d)
 
-deb_udhcpd_conf=${deb_ro_dir}/udhcpd.conf
+deb_udhcpd_conf=${deb_etc_dir}/udhcpd.conf
 deb_udhcpd_default=${deb_etc_dir}/default/udhcpd
 
 deb_generated_dnsmasq_file=usb0-dhcp
@@ -133,6 +133,7 @@ interface=usb0
 dhcp-range=${deb_usb_gateway},${deb_usb_gateway}
 dhcp-option=3
 except-interface=lo
+except-interface=eth0
 listen-address=${deb_usb_address}
 EOF
 			/sbin/ifconfig usb0 ${deb_usb_address} netmask ${deb_usb_netmask} || true

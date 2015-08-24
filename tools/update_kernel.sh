@@ -1,6 +1,6 @@
 #!/bin/sh -e
 #
-# Copyright (c) 2014 Robert Nelson <robertcnelson@gmail.com>
+# Copyright (c) 2014-2015 Robert Nelson <robertcnelson@gmail.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,22 +25,91 @@ if ! id | grep -q root; then
 	exit
 fi
 
+scan_ti_kernels () {
+	if [ "x${SOC}" = "x" ] ; then
+		unset testvalue
+		testvalue=$(echo ${current_kernel} | grep ti-xenomai || true)
+		if [ ! "x${testvalue}" = "x" ] ; then
+			SOC="ti-xenomai"
+		fi
+	fi
+
+	if [ "x${SOC}" = "x" ] ; then
+		unset testvalue
+		testvalue=$(echo ${current_kernel} | grep ti-rt || true)
+		if [ ! "x${testvalue}" = "x" ] ; then
+			SOC="ti-rt"
+		fi
+	fi
+
+	if [ "x${SOC}" = "x" ] ; then
+		unset testvalue
+		testvalue=$(echo ${current_kernel} | grep ti || true)
+		if [ ! "x${testvalue}" = "x" ] ; then
+			SOC="ti"
+		fi
+	fi
+}
+
+scan_bone_kernels () {
+	if [ "x${SOC}" = "x" ] ; then
+		unset testvalue
+		testvalue=$(echo ${current_kernel} | grep bone-rt || true)
+		if [ ! "x${testvalue}" = "x" ] ; then
+			SOC="bone-rt"
+		fi
+	fi
+	if [ "x${SOC}" = "x" ] ; then
+		unset testvalue
+		testvalue=$(echo ${current_kernel} | grep bone || true)
+		if [ ! "x${testvalue}" = "x" ] ; then
+			SOC="omap-psp"
+		fi
+	fi
+}
+
+scan_armv7_kernels () {
+	if [ "x${SOC}" = "x" ] ; then
+		unset testvalue
+		testvalue=$(echo ${current_kernel} | grep lpae || true)
+		if [ ! "x${testvalue}" = "x" ] ; then
+			SOC="armv7-lpae"
+		fi
+	fi
+	if [ "x${SOC}" = "x" ] ; then
+		unset testvalue
+		testvalue=$(echo ${current_kernel} | grep armv7-rt || true)
+		if [ ! "x${testvalue}" = "x" ] ; then
+			SOC="armv7-rt"
+		fi
+	fi
+	if [ "x${SOC}" = "x" ] ; then
+		unset testvalue
+		testvalue=$(echo ${current_kernel} | grep armv7 || true)
+		if [ ! "x${testvalue}" = "x" ] ; then
+			SOC="armv7"
+		fi
+	fi
+}
+
 get_device () {
 	machine=$(cat /proc/device-tree/model | sed "s/ /_/g")
 
 	if [ "x${SOC}" = "x" ] ; then
 		case "${machine}" in
-		TI_AM335x_BeagleBone|TI_AM335x_BeagleBone_Black)
-			uname -r | grep ti >/dev/null && SOC="ti"
-			if [ "x${SOC}" = "x" ] ; then
-				SOC="omap-psp"
-			fi
+		TI_AM335x_BeagleBone|TI_AM335x_BeagleBone_Black|TI_AM335x_BeagleBone_Green)
+			scan_ti_kernels
+			scan_bone_kernels
+			scan_armv7_kernels
+			es8="enabled"
 			;;
 		TI_AM5728_BeagleBoard-X15)
-			SOC="ti"
+			scan_ti_kernels
+			scan_armv7_kernels
 			;;
 		TI_OMAP5_uEVM_board)
-			SOC="armv7-lpae"
+			scan_ti_kernels
+			scan_armv7_kernels
 			;;
 		*)
 			echo "Machine: [${machine}]"
@@ -48,6 +117,20 @@ get_device () {
 			;;
 		esac
 	fi
+
+	unset es8
+	unset kernel_headers
+	case "${machine}" in
+	TI_AM335x_BeagleBone|TI_AM335x_BeagleBone_Black|TI_AM335x_BeagleBone_Green)
+		es8="enabled"
+		;;
+	TI_AM5728_BeagleBoard-X15)
+		kernel_headers="enabled"
+		;;
+	TI_OMAP5_uEVM_board)
+		kernel_headers="enabled"
+		;;
+	esac
 }
 
 update_uEnv_txt () {
@@ -87,11 +170,27 @@ latest_version_repo () {
 		fi
 
 		echo "info: checking archive"
-		wget ${mirror}/${dist}-${arch}/LATEST-${SOC}
+		wget --no-verbose ${mirror}/${dist}-${arch}/LATEST-${SOC}
 		if [ -f /tmp/LATEST-${SOC} ] ; then
+
+			echo "-----------------------------"
+			echo "Kernel Options:"
+			cat /tmp/LATEST-${SOC}
+			echo "-----------------------------"
+
 			latest_kernel=$(cat /tmp/LATEST-${SOC} | grep ${kernel} | awk '{print $3}')
-			echo "debug: your are running: [`uname -r`]"
-			echo "debug: latest is: [${latest_kernel}]"
+			echo "info: you are running: [${current_kernel}], latest is: [${latest_kernel}] updating..."
+			if [ "x${latest_kernel}" = "x" ] ; then
+				exit
+			fi
+
+			if [ "x${current_kernel}" = "x${latest_kernel}" ] ; then
+				if [ "x${daily_cron}" = "xenabled" ] ; then
+					apt-get clean
+					exit
+				fi
+			fi
+			apt-get update
 
 			pkg="linux-image-${latest_kernel}"
 			#is the package installed?
@@ -99,14 +198,13 @@ latest_version_repo () {
 			#is the package even available to apt?
 			check_apt_cache
 			if [ "x${deb_pkgs}" = "x${apt_cache}" ] ; then
+				if [ "x${kernel_headers}" = "xenabled" ] ; then
+					pkg="${pkg} linux-headers-${latest_kernel}"
+				fi
 				echo "debug: installing: [${pkg}]"
 				apt-get install -y ${pkg}
 				update_uEnv_txt
 			elif [ "x${pkg}" = "x${apt_cache}" ] ; then
-				if [ "x${daily_cron}" = "xenabled" ] ; then
-					apt-get clean
-					exit
-				fi
 				echo "debug: reinstalling: [${pkg}]"
 				apt-get install -y ${pkg} --reinstall
 				update_uEnv_txt
@@ -126,18 +224,20 @@ latest_version () {
 		fi
 
 		echo "info: checking archive"
-		wget ${mirror}/${dist}-${arch}/LATEST-${SOC}
+		wget --no-verbose ${mirror}/${dist}-${arch}/LATEST-${SOC}
 		if [ -f /tmp/LATEST-${SOC} ] ; then
 			latest_kernel=$(cat /tmp/LATEST-${SOC} | grep ${kernel} | awk '{print $3}')
-			echo "debug: your are running: [${current_kernel}]"
-			echo "debug: latest is: [${latest_kernel}]"
+			echo "info: you are running: [${current_kernel}], latest is: [${latest_kernel}] updating..."
+			if [ "x${latest_kernel}" = "x" ] ; then
+				exit
+			fi
 
 			if [ ! "x${current_kernel}" = "x${latest_kernel}" ] ; then
 				distro=$(lsb_release -is)
 				if [ "x${distro}" = "xDebian" ] ; then
-					wget -c https://rcn-ee.com/repos/debian/pool/main/l/linux-upstream/linux-image-${latest_kernel}_1${dist}_${arch}.deb
+					wget --no-verbose -c https://rcn-ee.com/repos/debian/pool/main/l/linux-upstream/linux-image-${latest_kernel}_1${dist}_${arch}.deb
 				else
-					wget -c https://rcn-ee.com/repos/ubuntu/pool/main/l/linux-upstream/linux-image-${latest_kernel}_1${dist}_${arch}.deb
+					wget --no-verbose -c https://rcn-ee.com/repos/ubuntu/pool/main/l/linux-upstream/linux-image-${latest_kernel}_1${dist}_${arch}.deb
 				fi
 				if [ -f /tmp/linux-image-${latest_kernel}_1${dist}_${arch}.deb ] ; then
 					dpkg -i /tmp/linux-image-${latest_kernel}_1${dist}_${arch}.deb
@@ -206,6 +306,7 @@ latest_version () {
 
 specific_version_repo () {
 	latest_kernel=$(echo ${kernel_version})
+	apt-get update
 
 	pkg="linux-image-${latest_kernel}"
 	#is the package installed?
@@ -213,6 +314,9 @@ specific_version_repo () {
 	#is the package even available to apt?
 	check_apt_cache
 	if [ "x${deb_pkgs}" = "x${apt_cache}" ] ; then
+		if [ "x${kernel_headers}" = "xenabled" ] ; then
+			pkg="${pkg} linux-headers-${latest_kernel}"
+		fi
 		apt-get install -y ${pkg}
 		update_uEnv_txt
 	elif [ "x${pkg}" = "x${apt_cache}" ] ; then
@@ -230,15 +334,26 @@ third_party_final () {
 
 third_party () {
 	if [ "x${SOC}" = "xomap-psp" ] ; then
-		apt-get install -o Dpkg::Options::="--force-overwrite" -y mt7601u-modules-${latest_kernel}
-
+		#3.8 only...
+		if [ "x${kernel}" = "xSTABLE" ] ; then
+			apt-get install -o Dpkg::Options::="--force-overwrite" -y mt7601u-modules-${latest_kernel} || true
+		fi
+		if [ ! "x${kernel}" = "xSTABLE" ] ; then
+			if [ "x${es8}" = "xenabled" ] ; then
+				apt-get install -y ti-sgx-es8-modules-${latest_kernel} || true
+			fi
+		fi
 		third_party_final
 	fi
 
-	if [ "x${SOC}" = "xti" ] ; then
-		apt-get install -o Dpkg::Options::="--force-overwrite" -y mt7601u-modules-${latest_kernel}
-
-		apt-get install -y ti-sgx-es8-modules-${latest_kernel}
+	if [ "x${SOC}" = "xti" ] || [ "x${SOC}" = "xti-rt" ] || [ "x${SOC}" = "xti-xenomai" ] ; then
+		#3.14 only...
+		if [ "x${kernel}" = "xSTABLE" ] ; then
+			apt-get install -o Dpkg::Options::="--force-overwrite" -y mt7601u-modules-${latest_kernel} || true
+		fi
+		if [ "x${es8}" = "xenabled" ] ; then
+			apt-get install -y ti-sgx-es8-modules-${latest_kernel} || true
+		fi
 		third_party_final
 	fi
 }
@@ -255,22 +370,31 @@ if [ ! -f /usr/bin/lsb_release ] ; then
 	exit
 fi
 
-dist=$(lsb_release -cs)
+dist=$(lsb_release -cs | sed 's/\//_/g')
 arch=$(dpkg --print-architecture)
 current_kernel=$(uname -r)
 
+#Debian testing...
+if [ "x${dist}" = "xn_a" ] ; then
+	deb_lsb_rs=$(lsb_release -rs | awk '{print $1}' | sed 's/\//_/g')
+
+	#Distributor ID:	Debian
+	#Description:	Debian GNU/Linux testing/unstable
+	#Release:	testing/unstable
+	#Codename:	n/a
+
+	if [ "x${deb_lsb_rs}" = "xtesting_unstable" ] ; then
+		dist="stretch"
+	fi
+fi
+
 kernel="STABLE"
 mirror="https://rcn-ee.com/repos/latest"
-unset rcn_mirror
 unset kernel_version
 unset daily_cron
 # parse commandline options
 while [ ! -z "$1" ] ; do
 	case $1 in
-	--use-rcn-mirror)
-		mirror="http://rcn-ee.homeip.net:81/dl/mirrors/deb"
-		rcn_mirror="enabled"
-		;;
 	--kernel)
 		checkparm $2
 		kernel_version="$2"
@@ -278,14 +402,42 @@ while [ ! -z "$1" ] ; do
 	--daily-cron)
 		daily_cron="enabled"
 		;;
-	--beta-kernel)
+	--lts-kernel|--lts)
+		kernel="LTS"
+		;;
+	--stable-kernel|--stable)
+		kernel="STABLE"
+		;;
+	--beta-kernel|--beta|--testing-kernel|--testing)
 		kernel="TESTING"
 		;;
-	--exp-kernel)
+	--exp-kernel|--exp)
 		kernel="EXPERIMENTAL"
 		;;
-	--ti-kernel)
+	--armv7-channel)
+		SOC="armv7"
+		;;
+	--armv7-rt-channel)
+		SOC="armv7-rt"
+		;;
+	--bone-kernel|--bone-channel)
+		SOC="omap-psp"
+		;;
+	--bone-rt-kernel|--bone-rt-channel)
+		SOC="bone-rt"
+		;;
+	--omap2plus-channel)
+		SOC="omap2plus"
+		kernel="STABLE"
+		;;
+	--ti-kernel|--ti-channel)
 		SOC="ti"
+		;;
+	--ti-rt-kernel|--ti-rt-channel)
+		SOC="ti-rt"
+		;;
+	--ti-xenomai-kernel|--ti-xenomai-channel)
+		SOC="ti-xenomai"
 		;;
 	esac
 	shift
@@ -299,13 +451,12 @@ if [ ! -f /lib/systemd/system/systemd-timesyncd.service ] ; then
 	fi
 fi
 
-test_rcnee=$(cat /etc/apt/sources.list | grep rcn-ee || true)
+test_rcnee=$(cat /etc/apt/sources.list | grep repos.rcn-ee || true)
 if [ ! "x${test_rcnee}" = "x" ] ; then
 	net_rcnee=$(cat /etc/apt/sources.list | grep repos.rcn-ee.net || true)
 	if [ ! "x${net_rcnee}" = "x" ] ; then
 		sed -i -e 's:repos.rcn-ee.net:repos.rcn-ee.com:g' /etc/apt/sources.list
 	fi
-	apt-get update
 	get_device
 
 	if [ "x${kernel_version}" = "x" ] ; then

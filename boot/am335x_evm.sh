@@ -63,11 +63,12 @@ if [ "x${abi}" = "x" ] ; then
 	fi
 fi
 
-SERIAL_NUMBER="0123456789"
+SERIAL_NUMBER="0C-1234BBBK5678"
 ISBLACK=""
 PRODUCT="am335x_evm"
 manufacturer="Circuitco"
 
+#pre nvmem...
 eeprom="/sys/bus/i2c/devices/0-0050/eeprom"
 if [ -f ${eeprom} ] ; then
 	SERIAL_NUMBER=$(hexdump -e '8/1 "%c"' ${eeprom} -s 14 -n 2)-$(hexdump -e '8/1 "%c"' ${eeprom} -s 16 -n 12)
@@ -79,9 +80,21 @@ if [ -f ${eeprom} ] ; then
 	fi
 fi
 
+#[PATCH (pre v8) 0/9] Add simple NVMEM Framework via regmap.
 eeprom="/sys/class/nvmem/at24-0/nvmem"
 if [ -f ${eeprom} ] ; then
-	SERIAL_NUMBER=$(hexdump -e '8/1 "%c"' ${eeprom} -n 16 | cut -b 15-16)-$(hexdump -e '8/1 "%c"' ${eeprom} -n 24 | cut -b 13-24)
+	SERIAL_NUMBER=$(hexdump -e '8/1 "%c"' ${eeprom} -n 16 | cut -b 15-16)-$(hexdump -e '8/1 "%c"' ${eeprom} -n 28 | cut -b 17-28)
+	ISBLACK=$(hexdump -e '8/1 "%c"' ${eeprom} -n 12 | cut -b 9-12)
+	PRODUCT="BeagleBone"
+	if [ "x${ISBLACK}" = "xBBBK" ] || [ "x${ISBLACK}" = "xBNLT" ] ; then
+		PRODUCT="BeagleBoneBlack"
+	fi
+fi
+
+#[PATCH v8 0/9] Add simple NVMEM Framework via regmap.
+eeprom="/sys/bus/nvmem/devices/at24-0/nvmem"
+if [ -f ${eeprom} ] ; then
+	SERIAL_NUMBER=$(hexdump -e '8/1 "%c"' ${eeprom} -n 16 | cut -b 15-16)-$(hexdump -e '8/1 "%c"' ${eeprom} -n 28 | cut -b 17-28)
 	ISBLACK=$(hexdump -e '8/1 "%c"' ${eeprom} -n 12 | cut -b 9-12)
 	PRODUCT="BeagleBone"
 	if [ "x${ISBLACK}" = "xBBBK" ] || [ "x${ISBLACK}" = "xBNLT" ] ; then
@@ -125,18 +138,20 @@ else
 	root_drive="$(cat /proc/cmdline | sed 's/ /\n/g' | grep root= | awk -F 'root=' '{print $2}' || true)"
 fi
 
+g_network="iSerialNumber=${SERIAL_NUMBER} iManufacturer=${manufacturer} iProduct=${PRODUCT} host_addr=${cpsw_1_mac} dev_addr=${dev_mac}"
+
 #In a single partition setup, dont load g_multi, as we could trash the linux file system...
 if [ "x${root_drive}" = "x/dev/mmcblk0p1" ] || [ "x${root_drive}" = "x/dev/mmcblk1p1" ] ; then
 	if [ -f /usr/sbin/udhcpd ] || [ -f /usr/sbin/dnsmasq ] ; then
 		#Make sure (# CONFIG_USB_ETH_EEM is not set), otherwise this shows up as "usb0" instead of ethX on host pc..
-		modprobe g_ether iSerialNumber=${SERIAL_NUMBER} iManufacturer=${manufacturer} iProduct=${PRODUCT} host_addr=${cpsw_1_mac} dev_addr=${dev_mac} || true
+		modprobe g_ether ${g_network} || true
 	else
 		#serial:
 		modprobe g_serial || true
 	fi
 else
 	boot_drive="${root_drive%?}1"
-	modprobe g_multi file=${boot_drive} cdrom=0 ro=0 stall=0 removable=1 nofua=1 iSerialNumber=${SERIAL_NUMBER} iManufacturer=${manufacturer} iProduct=${PRODUCT} host_addr=${cpsw_1_mac} dev_addr=${dev_mac} || true
+	modprobe g_multi file=${boot_drive} cdrom=0 ro=0 stall=0 removable=1 nofua=1 ${g_network} || true
 fi
 
 sleep 3
@@ -148,16 +163,16 @@ $(dirname $0)/autoconfigure_usb0.sh
 
 eth0_addr=$(ip addr list eth0 |grep "inet " |cut -d' ' -f6|cut -d/ -f1 2>/dev/null || true)
 usb0_addr=$(ip addr list usb0 |grep "inet " |cut -d' ' -f6|cut -d/ -f1 2>/dev/null || true)
-wlan0_addr=$(ip addr list wlan0 |grep "inet " |cut -d' ' -f6|cut -d/ -f1 2>/dev/null || true)
+#wlan0_addr=$(ip addr list wlan0 |grep "inet " |cut -d' ' -f6|cut -d/ -f1 2>/dev/null || true)
 
 sed -i -e '/Address/d' /etc/issue
 
 if [ ! "x${eth0_addr}" = "x" ] ; then
 	echo "The IP Address for eth0 is: ${eth0_addr}" >> /etc/issue
 fi
-if [ ! "x${wlan0_addr}" = "x" ] ; then
-	echo "The IP Address for wlan0 is: ${wlan0_addr}" >> /etc/issue
-fi
+#if [ ! "x${wlan0_addr}" = "x" ] ; then
+#	echo "The IP Address for wlan0 is: ${wlan0_addr}" >> /etc/issue
+#fi
 if [ ! "x${usb0_addr}" = "x" ] ; then
 	echo "The IP Address for usb0 is: ${usb0_addr}" >> /etc/issue
 fi
@@ -194,8 +209,77 @@ if [ "x${abi}" = "x" ] ; then
 	fi
 fi
 
+#loading cape-universal...
+if [ -f /sys/devices/platform/bone_capemgr/slots ] ; then
 
-# Call the replicape specific start-up script
-$(dirname $0)/replicape-startup.sh
+	#cape-universal Exports all pins not used by HDMIN and eMMC (including audio)
+	#cape-universaln Exports all pins not used by HDMI and eMMC (no audio pins are exported)
+	#cape-univ-emmc Exports pins used by eMMC, load if eMMC is disabled
+	#cape-univ-hdmi Exports pins used by HDMI video, load if HDMI is disabled
+	#cape-univ-audio Exports pins used by HDMI audio
 
+	unset stop_cape_load
+
+	#Make sure bone_capemgr.enable_partno wasn't passed to cmdline...
+	if [ "x${stop_cape_load}" = "x" ] ; then
+		check_enable_partno=$(grep bone_capemgr.enable_partno /proc/cmdline || true)
+		if [ ! "x${check_enable_partno}" = "x" ] ; then
+			stop_cape_load="stop"
+		fi
+	fi
+
+	#Make sure no custom overlays are loaded...
+	if [ "x${stop_cape_load}" = "x" ] ; then
+		check_cape_loaded=$(cat /sys/devices/platform/bone_capemgr/slots | awk '{print $3}' | grep 0 | tail -1 || true)
+		if [ ! "x${check_cape_loaded}" = "x" ] ; then
+			stop_cape_load="stop"
+		fi
+	fi
+
+	#Make sure we load the correct overlay based on lack/custom dtb's...
+	if [ "x${stop_cape_load}" = "x" ] ; then
+		unset overlay
+		check_dtb=$(cat /boot/uEnv.txt | grep -v '#' | grep dtb | tail -1 | awk -F '=' '{print $2}' || true)
+		if [ ! "x${check_dtb}" = "x" ] ; then
+			case "${check_dtb}" in
+			am335x-boneblack-overlay.dtb)
+				overlay="univ-all"
+				;;
+			am335x-boneblack-emmc-overlay.dtb)
+				overlay="univ-emmc"
+				;;
+			am335x-boneblack-hdmi-overlay.dtb)
+				overlay="univ-hdmi"
+				;;
+			am335x-boneblack-nhdmi-overlay.dtb)
+				overlay="univ-nhdmi"
+				;;
+			am335x-bonegreen-overlay.dtb)
+				overlay="univ-all"
+				;;
+			esac
+		else
+			machine=$(cat /proc/device-tree/model | sed "s/ /_/g")
+			case "${machine}" in
+			TI_AM335x_BeagleBone)
+				overlay="univ-all"
+				;;
+			TI_AM335x_BeagleBone_Black)
+				overlay="cape-universaln"
+				;;
+			TI_AM335x_BeagleBone_Green)
+				overlay="univ-emmc"
+				;;
+			esac
+		fi
+		if [ ! "x${overlay}" = "x" ] ; then
+			dtbo="${overlay}-00A0.dtbo"
+			if [ -f /lib/firmware/${dtbo} ] ; then
+				if [ -f /usr/local/bin/config-pin ] ; then
+					config-pin overlay ${overlay}
+				fi
+			fi
+		fi
+	fi
+fi
 #

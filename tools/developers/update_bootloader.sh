@@ -210,14 +210,22 @@ dd_spl_uboot_boot () {
 	fi
 }
 
-got_board () {
-	target="/dev/mmcblk0"
-	case "${conf_board}" in
-	am335x_evm|beagle_x15)
-		is_omap
-		;;
-	omap5_uevm)
+get_device () {
+	machine=$(cat /proc/device-tree/model | sed "s/ /_/g")
+
+	case "${machine}" in
+	TI_OMAP5_uEVM_board)
 		target="/dev/mmcblk1"
+		;;
+	*)
+		target="/dev/mmcblk0"
+		;;
+	esac
+}
+
+got_board () {
+	case "${conf_board}" in
+	am335x_boneblack|am335x_evm|beagle_x15|omap5_uevm)
 		is_omap
 		;;
 	esac
@@ -241,6 +249,7 @@ got_board () {
 }
 
 check_soc_sh () {
+	get_device
 	echo "Bootloader Recovery"
 	if [ ! "x$(uname -m)" = "xarmv7l" ] ; then
 		echo "Warning, this is only half implemented to make it work on x86..."
@@ -259,6 +268,9 @@ check_soc_sh () {
 			fi
 
 			conf_board="${board}"
+			if [ "x${bbb_blank}" = "xenable" ] ; then
+				conf_board="am335x_boneblack"
+			fi
 			got_board
 		else
 			echo "Sorry: board undefined in [${DRIVE}/SOC.sh] can not update bootloader safely"
@@ -270,7 +282,7 @@ check_soc_sh () {
 		if [ -f /boot/SOC.sh ] ; then
 			. /boot/SOC.sh
 			mkdir -p /tmp/uboot/
-			mount /dev/mmcblk0p1 /tmp/uboot/
+			mount ${target}p1 /tmp/uboot/
 			DRIVE="/tmp/uboot"
 			if [ "x${board}" != "x" ] ; then
 
@@ -281,6 +293,9 @@ check_soc_sh () {
 				fi
 
 				conf_board="${board}"
+				if [ "x${bbb_blank}" = "xenable" ] ; then
+					conf_board="am335x_boneblack"
+				fi
 				got_board
 			else
 				echo "Sorry: board undefined in [${DRIVE}/SOC.sh] can not update bootloader safely"
@@ -296,7 +311,7 @@ check_soc_sh () {
 		if [ -f /boot/uboot/SOC.sh ] ; then
 			. /boot/uboot/SOC.sh
 			mkdir -p /tmp/uboot/
-			mount /dev/mmcblk0p1 /tmp/uboot/
+			mount ${target}p1 /tmp/uboot/
 			DRIVE="/tmp/uboot"
 			if [ "x${board}" != "x" ] ; then
 
@@ -307,6 +322,9 @@ check_soc_sh () {
 				fi
 
 				conf_board="${board}"
+				if [ "x${bbb_blank}" = "xenable" ] ; then
+					conf_board="am335x_boneblack"
+				fi
 				got_board
 			else
 				echo "Sorry: board undefined in [${DRIVE}/SOC.sh] can not update bootloader safely"
@@ -332,6 +350,9 @@ while [ ! -z "$1" ] ; do
 	case $1 in
 	--use-beta-bootloader)
 		USE_BETA_BOOTLOADER=1
+		;;
+	--bbb-blank)
+		bbb_blank=enable
 		;;
 	esac
 	shift
