@@ -57,6 +57,13 @@ if [ -f /proc/device-tree/model ] ; then
 	fi
 fi
 
+# Replicape specific startup
+if [ -f "/opt/scripts/boot/replicape-startup.sh" ] ; then
+	/bin/sh /opt/scripts/boot/replicape-startup.sh
+fi
+
+
+
 # Disable the startup script so it does not run again
 if [ -f /lib/systemd/system/generic-board-startup.service ] ; then
 	systemctl disable generic-board-startup.service || true
