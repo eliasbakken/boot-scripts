@@ -35,3 +35,6 @@ update_initramfs () {
 
 update_initramfs
 
+echo "BB-BONE-REPLICAP:00B3" > /sys/bus/platform/devices/bone_capemgr/slots
+systemctl restart replicape
+

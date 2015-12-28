@@ -15,3 +15,148 @@ serial:
   port: /dev/octoprint_1
 
 
+controls:
+  - name: Stepper current and microstepping
+    layout: vertical
+    children:
+    - name: Set
+      layout: vertical
+      commands: 
+       - M906 X%(current_x)s
+       - M909 X%(microstepping_x)s
+       - M910 X%(decay_x)s
+      input:
+      - default: 500
+        name: X cur
+        parameter: current_x
+        slider:
+          max: 2500
+          min: 1
+          step: 1
+      - default: 6
+        name: ustep
+        parameter: microstepping_x
+        slider:
+          max: 8
+          min: 0
+          step: 1
+      - default: 4
+        name: decay
+        parameter: decay_x
+        slider: 
+          max: 7
+          min: 0
+          step: 1
+    - name: Set
+      layout: vertical
+      commands: 
+       - M906 Y%(current_y)s
+       - M909 Y%(microstepping_y)s
+       - M910 Y%(decay_y)s
+      input:
+      - default: 500
+        name: Y cur
+        parameter: current_y
+        slider:
+          max: 2500
+          min: 1
+          step: 1
+      - default: 6
+        name: ustep
+        parameter: microstepping_y
+        slider:
+          max: 8
+          min: 0
+          step: 1
+      - default: 4
+        name: decay
+        parameter: decay_y
+        slider: 
+          max: 7
+          min: 0
+          step: 1
+    - name: Set
+      layout: vertical
+      commands: 
+       - M906 Z%(current_z)s
+       - M909 Z%(microstepping_z)s
+       - M910 Z%(decay_z)s
+      input:
+      - default: 500
+        name: Z cur
+        parameter: current_z
+        slider:
+          max: 2500
+          min: 1
+          step: 1
+      - default: 6
+        name: ustep
+        parameter: microstepping_z
+        slider:
+          max: 7
+          min: 0
+          step: 1
+      - default: 4
+        name: decay
+        parameter: decay_z
+        slider: 
+          max: 7
+          min: 0
+          step: 1
+    - name: Set
+      layout: vertical
+      commands: 
+       - M906 E%(current_e)s
+       - M909 E%(microstepping_e)s
+       - M910 E%(decay_e)s
+      input:
+      - default: 500
+        name: E cur
+        parameter: current_e
+        slider:
+          max: 2500
+          min: 1
+          step: 1
+      - default: 6
+        name: ustep
+        parameter: microstepping_e
+        slider:
+          max: 8
+          min: 0
+          step: 1
+      - default: 4
+        name: decay
+        parameter: decay_e
+        slider: 
+          max: 7
+          min: 0
+          step: 1
+    - name: Set
+      layout: vertical
+      commands: 
+       - M906 H%(current_h)s
+       - M909 H%(microstepping_h)s
+       - M910 H%(decay_h)s
+      input:
+      - default: 500
+        name: H cur
+        parameter: current_h
+        slider:
+          max: 2500
+          min: 1
+          step: 1
+      - default: 6
+        name: ustep
+        parameter: microstepping_h
+        slider:
+          max: 8
+          min: 0
+          step: 1
+      - default: 4
+        name: decay
+        parameter: decay_h
+        slider: 
+          max: 7
+          min: 0
+          step: 1
+
