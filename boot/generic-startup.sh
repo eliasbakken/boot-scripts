@@ -60,6 +60,6 @@ fi
 # Replicape specific startup
 if [ -f "/opt/scripts/boot/replicape-startup.sh" ] ; then
 	/bin/sh /opt/scripts/boot/replicape-startup.sh
-    mv /opt/scripts/boot/replicape-startup.sh /opt/scripts/boot/replicape-startup.sh_dis
+	mv /opt/scripts/boot/replicape-startup.sh /opt/scripts/boot/replicape-startup.sh_dis
 fi
 
