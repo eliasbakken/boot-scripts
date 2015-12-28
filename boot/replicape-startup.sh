@@ -8,6 +8,7 @@ mkdir -p "/home/octo/.octoprint"
 chown -R octo:octo "/home/octo/.octoprint"
 
 # Fix permissions for STL upload folder
+mkdir -p /usr/share/models
 chown octo:octo /usr/share/models
 chmod 777 /usr/share/models
 
