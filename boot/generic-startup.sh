@@ -61,5 +61,7 @@ fi
 if [ -f "/opt/scripts/boot/replicape-startup.sh" ] ; then
 	/bin/sh /opt/scripts/boot/replicape-startup.sh
 	mv /opt/scripts/boot/replicape-startup.sh /opt/scripts/boot/replicape-startup.sh_dis
+    echo "Rebooting after depmod"
+    reboot
 fi
 
