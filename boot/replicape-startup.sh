@@ -22,8 +22,6 @@ chown octo:octo /etc/redeem/
 # Run depmod to fix 
 sleep 10
 depmod -a
-systemctl restart pvrsrv
-systemctl restart toggle
 
 
 update_initramfs () {
@@ -36,6 +34,5 @@ update_initramfs () {
 
 update_initramfs
 
-echo "BB-BONE-REPLICAP:00B3" > /sys/bus/platform/devices/bone_capemgr/slots
-systemctl restart replicape
-
+# Reboot board to start with replicape
+reboot
