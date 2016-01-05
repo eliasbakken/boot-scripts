@@ -34,5 +34,3 @@ update_initramfs () {
 
 update_initramfs
 
-# Reboot board to start with replicape
-reboot
