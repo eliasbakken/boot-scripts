@@ -234,6 +234,7 @@ cylon_leds () {
 }
 
 display_loader () {
+    message="Starting eMMC image loader" ; broadcast
 	echo 0 > /sys/class/graphics/fbcon/cursor_blink
 	/usr/bin/fbi -T 2 /opt/scripts/images/Kamikaze_image_loader_rotate.png
 }
@@ -534,6 +535,6 @@ message="-----------------------------" ; broadcast
 check_eeprom
 check_running_system
 cylon_leds & CYLON_PID=$!
-display_loader &
+#display_loader &
 partition_drive
 #
