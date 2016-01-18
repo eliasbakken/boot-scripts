@@ -16,6 +16,10 @@ chmod 777 /usr/share/models
 cp /opt/scripts/replicape/config.yaml /home/octo/.octoprint/
 chown octo:octo "/home/octo/.octoprint/config.yaml"
 
+# Copy profiles into Cura. 
+mkdir -p /home/octo/.octoprint/slicingProfiles/cura/
+cp /opt/scripts/replicape/Cura/profiles/*.profile /home/octo/.octoprint/slicingProfiles/cura/
+
 # Make profiles uploadable via Octoprint
 chown octo:octo /etc/redeem/
 
