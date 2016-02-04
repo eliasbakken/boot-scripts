@@ -93,7 +93,7 @@ controls:
         name: ustep
         parameter: microstepping_z
         slider:
-          max: 7
+          max: 8
           min: 0
           step: 1
       - default: 4
@@ -159,4 +159,14 @@ controls:
           max: 7
           min: 0
           step: 1
+  - name: Get Position
+    type: feedback_command
+    command: M114
+    regex: "ok C: A:([0-9.-]+) B:([0-9.-]+) C:([0-9.-]+) E:([0-9.-]+) H:([0-9.-]+) X:([0-9.-]+) Y:([0-9.-]+) Z:([0-9.-]+)"
+    template: "Position: X={5}, Y={6}, Z={7}, E={3}"
+  - name: Get End stops
+    type: feedback_command
+    command: M119
+    regex: "ok X1: (True|False), X2: (True|False), Y1: (True|False), Y2: (True|False), Z1: (True|False), Z2: (True|False)"
+    template: "End stop hit: X1={0}, X2={1}, Y1={2}, Y2={3}, Z1={4}, Z2={5}"
 
