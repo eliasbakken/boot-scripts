@@ -24,6 +24,10 @@ chown octo:octo /home/octo/.octoprint/slicingProfiles/cura/
 # Make profiles uploadable via Octoprint
 chown octo:octo /etc/redeem/
 
+# Port forwarding
+/sbin/iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 5000
+/usr/sbin/netfilter-persistent save
+
 # Run depmod to fix 
 sleep 10
 depmod -a
