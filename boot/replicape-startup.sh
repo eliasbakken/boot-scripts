@@ -12,6 +12,9 @@ mkdir -p /usr/share/models
 chown octo:octo /usr/share/models
 chmod 777 /usr/share/models
 
+# Grant octo redeem restart rights
+echo "%octo ALL=NOPASSWD: /bin/systemctl restart redeem.service" >> /etc/sudoers
+
 # Make config file for Octoprint
 cp /opt/scripts/replicape/config.yaml /home/octo/.octoprint/
 chown octo:octo "/home/octo/.octoprint/config.yaml"
