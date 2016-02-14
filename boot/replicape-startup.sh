@@ -14,6 +14,7 @@ chmod 777 /usr/share/models
 
 # Grant octo redeem restart rights
 echo "%octo ALL=NOPASSWD: /bin/systemctl restart redeem.service" >> /etc/sudoers
+echo "%octo ALL=NOPASSWD: /bin/systemctl restart toggle.service" >> /etc/sudoers
 
 # Make config file for Octoprint
 cp /opt/scripts/replicape/config.yaml /home/octo/.octoprint/
