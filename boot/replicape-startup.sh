@@ -56,3 +56,5 @@ update_initramfs () {
 
 update_initramfs
 
+# Update the EEPROM
+cat /opt/boot/replicape/Replicape_00B3.eeprom > /sys/bus/i2c/drivers/at24/2-0054/at24-1/nvmem
