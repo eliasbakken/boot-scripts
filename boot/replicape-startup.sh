@@ -39,6 +39,13 @@ depmod -a
 easy_install requests==2.3.0
 
 
+apt-mark hold python-flask python-werkzeug python-tornado \
+python-sockjs-tornado python-PyYAML \
+python-Flask-Login python-Flask-Principal python-Flask-Babel \
+python-Flask-Assets python-pyserial python-netaddr \
+python-watchdog python-sarge python-netifaces python-pylru \
+python-rsa python-pkginfo python-requests python-semantic-version python-psutil
+
 update_initramfs () {
         if [ -f /boot/initrd.img-$(uname -r) ] ; then
                 sudo update-initramfs -u -k $(uname -r)
