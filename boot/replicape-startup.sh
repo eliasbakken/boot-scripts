@@ -36,6 +36,8 @@ chown octo:octo /etc/redeem/
 sleep 10
 depmod -a
 
+easy_install requests==2.3.0
+
 
 update_initramfs () {
         if [ -f /boot/initrd.img-$(uname -r) ] ; then
