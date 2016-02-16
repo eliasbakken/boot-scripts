@@ -56,5 +56,17 @@ update_initramfs () {
 
 update_initramfs
 
-# Update the EEPROM
-cat /opt/boot/replicape/Replicape_00B3.eeprom > /sys/bus/i2c/drivers/at24/2-0054/at24-1/nvmem
+
+# Update the EEPROM if missing
+update_eeprom () {
+        header=`head -c 4 /sys/bus/i2c/drivers/at24/2-0054/at24-1/nvmem`
+        valid=`echo -n -e '\xaa\x55\x33\xee'`
+        if [ "$header" == "$valid" ] ; then
+                echo "Found valid signaure, not updating"
+        else
+                echo "Invalid header signature, updating to Replicape Rev 00B3"
+                cat /opt/scripts/replicape/Replicape_00B3.eeprom > /sys/bus/i2c/drivers/at24/2-0054/at24-1/nvmem
+        fi
+}
+
+update_eeprom
